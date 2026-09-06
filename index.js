@@ -130,30 +130,30 @@ HoneywellTuxedoAccessory.prototype = {
         );
 
         emitter.on("longpoll", function (state) {
-          if(state != 5){
+          if(state !== 5){
               self.log(
               "Polling noticed %s change to %s, notifying devices",
               config.property,
               state
               );
             if (config.property === "target state") {
-              if(state == 4){
+              if(state === 4){
                 // Homekit doesn't accept a triggered value for target state, hence set the targetstate to last known target state
                 if(self.debug) self.log("Received target state 4, setting target state to lastTargetState: " + self.lastTargetState);
-                  self.SecuritySystem.getCharacteristic(config.characteristic).setValue(self.lastTargetState);
+                  self.SecuritySystem.getCharacteristic(config.characteristic).updateValue(self.lastTargetState);
                 }else{
-                  self.lastTargetState = state;  
-                  self.SecuritySystem.getCharacteristic(config.characteristic).setValue(state);
+                  self.lastTargetState = state;
+                  self.SecuritySystem.getCharacteristic(config.characteristic).updateValue(state);
                 }
             } else {
-              self.SecuritySystem.getCharacteristic(config.characteristic).setValue(state);
+              self.SecuritySystem.getCharacteristic(config.characteristic).updateValue(state);
             }
             // Set Statusfault characteristic to no fault
-            self.SecuritySystem.getCharacteristic(Characteristic.StatusFault).setValue(0)
+            self.SecuritySystem.getCharacteristic(Characteristic.StatusFault).updateValue(0)
           } else {
             // When state is 5, an error has been encountered, most common causes are unit not reachable due to internet issues or returning state as not available
             // Set Statusfault characteristic to General Fault
-            self.SecuritySystem.getCharacteristic(Characteristic.StatusFault).setValue(1)
+            self.SecuritySystem.getCharacteristic(Characteristic.StatusFault).updateValue(1)
             self.log("Security system state unavailable, setting state to fault")
           }
         }
@@ -162,7 +162,7 @@ HoneywellTuxedoAccessory.prototype = {
         emitter.on("error", function (err) {
           self.log("Polling of %s failed, error was %s", config.property, err);
           // Set Statusfault characteristic to General Fault
-          this.SecuritySystem.getCharacteristic(Characteristic.StatusFault).setValue(1)
+          self.SecuritySystem.getCharacteristic(Characteristic.StatusFault).updateValue(1)
         });
       });
     }
@@ -210,26 +210,26 @@ HoneywellTuxedoAccessory.prototype = {
         alarmStatus[statusString] === undefined ? 3 : alarmStatus[statusString];
       
         // If we find a state that isn't defined in alarm status and it isn't a arming / delay state, report in the log
-        if ((alarmStatus[statusString] === undefined) && (statusString.indexOf("Secs Remaining") == -1)) {
-          this.log(
+        if ((alarmStatus[statusString] === undefined) && (statusString.indexOf("Secs Remaining") === -1)) {
+          self.log(
             "[handleSecuritySystemCurrentStateGet] Unknown alarm state: " +
               statusString +
               " please report this through a github issue to the developer"
           );
         }
 
-      if (this.debug)
-        this.log(
+      if (self.debug)
+        self.log(
           "[returnCurrentState] Received value: " +
             value +
             ", corresponding current state: " +
             CurrentState
         );
-      if (CurrentState != 5){
+      if (CurrentState !== 5){
         this.lastValidCurrentState = CurrentState;
       }else{
         CurrentState = this.lastValidCurrentState;
-        if(this.debug) this.log("[handleSecuritySystemCurrentStateGet] Current state was Not available / error, returning the last known good state: " + this.lastValidCurrentState);
+        if(self.debug) self.log("[handleSecuritySystemCurrentStateGet] Current state was Not available / error, returning the last known good state: " + this.lastValidCurrentState);
       }
       callback(null, CurrentState);
     }
@@ -246,7 +246,7 @@ HoneywellTuxedoAccessory.prototype = {
     function returnTargetState(value) {
       var statusString = JSON.parse(value).Status.toString().trim();
 
-      if (statusString.indexOf("Secs Remaining") != -1) {
+      if (statusString.indexOf("Secs Remaining") !== -1) {
         TargetState = this.lastTargetState;
       } else {
         TargetState =
@@ -254,23 +254,23 @@ HoneywellTuxedoAccessory.prototype = {
             ? 3
             : alarmStatus[statusString];
         // Homekit doesn't accept a targetState of 4 (triggered), when triggered, return lastTargetState
-        if((TargetState == 4) || (TargetState == 5)) TargetState = this.lastTargetState;
-        if(this.debug) this.log("[handleSecuritySystemTargetStateGet] Target state was: " + TargetState + " returning lastTargetState: " + this.lastTargetState); 
+        if((TargetState === 4) || (TargetState === 5)) TargetState = this.lastTargetState;
+        if(self.debug) self.log("[handleSecuritySystemTargetStateGet] Target state was: " + TargetState + " returning lastTargetState: " + this.lastTargetState);
       }
 
       if (
         (alarmStatus[statusString] === undefined) && 
-        (statusString.indexOf("Secs Remaining") == -1)
+        (statusString.indexOf("Secs Remaining") === -1)
       ) {
-        this.log(
+        self.log(
           "[handleSecuritySystemTargetStateGet] Unknown alarm state: " +
             statusString +
             " please report this through a github issue to the developer"
         );
       }
 
-      if (this.debug)
-        this.log(
+      if (self.debug)
+        self.log(
           "[returnTargetState] Received value: " +
             value +
             ", corresponding target state: " +
@@ -297,12 +297,12 @@ HoneywellTuxedoAccessory.prototype = {
 
     TargetState = value;
     //Capture the last target state if it isn't disarmed
-    if(value != 3)
+    if(value !== 3)
     	this.lastTargetState = value;
-    if (value == 0) armAlarm.apply(this, ["STAY", callback]);
-    if (value == 1) armAlarm.apply(this, ["AWAY", callback]);
-    if (value == 2) armAlarm.apply(this, ["NIGHT", callback]);
-    if (value == 3) disarmAlarm.apply(this, [callback]);
+    if (value === 0) armAlarm.apply(this, ["STAY", callback]);
+    if (value === 1) armAlarm.apply(this, ["AWAY", callback]);
+    if (value === 2) armAlarm.apply(this, ["NIGHT", callback]);
+    if (value === 3) disarmAlarm.apply(this, [callback]);
   },
 };
 
@@ -340,7 +340,7 @@ async function callAPI_POST(url, data, callback) {
 
 function getAlarmMode(callback) {
   var url = protocol + "://" + this.host;
-  if (this.port != "") url += ":" + this.port;
+  if (this.port !== "") url += ":" + this.port;
   url += apibasepath + "/GetSecurityStatus";
 
   if (this.debug)
@@ -362,7 +362,7 @@ function armAlarm(mode, callback) {
       parseInt(this.uCode) +
       "&operation=set";
   var url = protocol + "://" + this.host;
-  if (this.port != "") url += ":" + this.port;
+  if (this.port !== "") url += ":" + this.port;
   url += apibasepath + "/AdvancedSecurity/ArmWithCode"; //?param=" + encryptData(dataCnt);
 
   if (this.debug)
@@ -388,7 +388,7 @@ function disarmAlarm(callback) {
   var pID = 1;
   var queryString = "cmd=3&Type=3&pID=" + pID + "&uCode=" + parseInt(this.uCode);
   var url = protocol + "://" + this.host;
-  if (this.port != "") url += ":" + this.port;
+  if (this.port !== "") url += ":" + this.port;
   url += "/handlerequest.html";
 
   if (this.debug)
@@ -438,7 +438,7 @@ async function getAPIKeys() {
     var response = await got(tuxApiUrl, options);
 
   } catch (error) {
-    if (error.code == "EPROTO") {
+    if (error.code === "EPROTO") {
       this.log(
         "[getAPIKeys] This likely an issue with strict openSSL configuration, see: https://github.com/lockpicker/homebridge-honeywell-tuxedo-touch/issues/1"
       );

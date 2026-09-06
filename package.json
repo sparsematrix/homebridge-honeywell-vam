@@ -27,8 +27,8 @@
   },
   "dependencies": {
     "crypto-js": "^4.0.0",
-    "got": "^11.5.2",
-    "node-html-parser": "^1.2.20",
+    "got": "^14.3.0",
+    "node-html-parser": "^6.1.13",
     "polling-to-event": "^2.1.0",
     "tough-cookie": "^4.0.0",
     "util": "^0.12.3"
