@@ -1,6 +1,6 @@
 {
   "name": "homebridge-honeywell-vam",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "description": "Homebridge plugin for the Honeywell VAM wifi security system",
   "main": "index.js",
   "scripts": {
@@ -26,11 +26,8 @@
     "homebridge": ">=0.4.8"
   },
   "dependencies": {
-    "crypto-js": "^4.0.0",
-    "got": "^14.3.0",
-    "node-html-parser": "^6.1.13",
+    "got": "^11.8.6",
     "polling-to-event": "^2.1.0",
-    "tough-cookie": "^4.0.0",
     "util": "^0.12.3"
   },
   "readmeFilename": "README.md",
