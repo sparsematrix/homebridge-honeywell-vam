@@ -2,6 +2,12 @@
 var got = require("got");
 var pollingtoevent = require("polling-to-event");
 const util = require("util");
+const http = require("http");
+const https = require("https");
+
+// Coalesce near-simultaneous status polls (the current-state and target-state
+// pollers fire together on every tick) into a single VAM request.
+var ALARM_MODE_CACHE_MS = 2000;
 
 let Service, Characteristic;
 
@@ -63,6 +69,14 @@ function HoneywellTuxedoAccessory(log, config) {
   // Last states we can safely report back to HomeKit
   this.lastTargetState = 3;
   this.lastValidCurrentState = 3;
+
+  // A single keep-alive connection, shared by every request this plugin makes
+  // (polling, arming, disarming, the status-refresh hack). The VAM only
+  // supports a handful of concurrent connections (as few as 4) and can drop
+  // all clients when that limit is hit, so maxSockets is pinned to 1 -
+  // anything else queues behind it instead of opening a second socket.
+  this._httpAgent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  this._httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 1, rejectUnauthorized: false });
 
   (async () => {
     await getAPIKeys.call(this);
@@ -298,7 +312,7 @@ async function callAPI_POST(url, data, callback) {
   const options = {
     method: "GET",
     url: data ? url + "?" + data : url,
-    https: { rejectUnauthorized: false },
+    agent: { http: this._httpAgent, https: this._httpsAgent },
   };
   if (this.debug)
     this.log("[callAPI_POST]: Calling alarm API with url: " + options.url);
@@ -324,10 +338,32 @@ async function callAPI_POST(url, data, callback) {
 }
 
 function getAlarmMode(callback) {
-  var url = buildBaseUrl(this) + apibasepath + "/GetSecurityStatus";
+  var self = this;
+  var now = Date.now();
 
-  if (this.debug) this.log("[getAlarmMode] About to call with, url: " + url);
-  callAPI_POST.apply(this, [url, "", callback]);
+  // Serve from the very-short-lived cache if we already have a fresh answer
+  if (self._alarmModeCache && (now - self._alarmModeCache.time) < ALARM_MODE_CACHE_MS) {
+    callback(self._alarmModeCache.value);
+    return;
+  }
+
+  // A request is already in flight (the current-state and target-state
+  // pollers tick together) - piggyback on it instead of opening a second connection
+  if (self._alarmModeWaiters) {
+    self._alarmModeWaiters.push(callback);
+    return;
+  }
+  self._alarmModeWaiters = [callback];
+
+  var url = buildBaseUrl(self) + apibasepath + "/GetSecurityStatus";
+  if (self.debug) self.log("[getAlarmMode] About to call with, url: " + url);
+
+  callAPI_POST.call(self, url, "", function (value) {
+    self._alarmModeCache = { time: Date.now(), value: value };
+    var waiters = self._alarmModeWaiters;
+    self._alarmModeWaiters = null;
+    waiters.forEach(function (cb) { cb(value); });
+  });
 }
 
 function armAlarm(mode, callback) {
@@ -379,9 +415,7 @@ async function getAPIKeys() {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
       },
-      https: {
-        rejectUnauthorized: false,
-      },
+      agent: { http: this._httpAgent, https: this._httpsAgent },
     };
 
     if (this.debug) this.log("[getAPIKeys] About to call, URL: " + tuxApiUrl);
